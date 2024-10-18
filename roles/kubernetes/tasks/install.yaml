@@ -1,38 +1,66 @@
-- name: "install :: updates package lists"
+- name: "install :: Update apt cache"
   become: true
   ansible.builtin.apt:
-    update_cache: true
-    force_apt_get: true
+    update_cache: yes
 
-- name: "install :: upgrades package lists"
-  become: true
-  ansible.builtin.apt:
-    upgrade: full
-    force_apt_get: true
-
-- name: "install :: adds the official Google key"
-  become: true
-  ansible.builtin.apt_key:
-    url: "https://packages.cloud.google.com/apt/doc/apt-key.gpg"
-    state: present
-
-- name: "install :: adds the official Kubernetes repository"
-  become: true
-  ansible.builtin.apt_repository:
-    repo: "deb [arch=amd64] https://apt.kubernetes.io/ kubernetes-xenial main"
-    state: present
-
-- name: "install :: updates package lists"
-  become: true
-  ansible.builtin.apt:
-    update_cache: true
-    force_apt_get: true
-
-- name: "install :: installs the Kubernetes packages"
+- name: "install :: Install packages needed for Kubernetes repository"
   become: true
   ansible.builtin.apt:
     pkg:
-      - kubeadm=1.28.*
-      - kubelet=1.28.*
-      - kubernetes-cni
-    force_apt_get: true
+      - apt-transport-https
+      - ca-certificates
+      - curl
+      - gpg
+    state: present
+
+- name: "install :: Create directory for apt keyrings"
+  become: true
+  ansible.builtin.file:
+    path: /etc/apt/keyrings
+    state: directory
+    mode: '0755'
+
+- name: "install :: Add Kubernetes apt key"
+  become: true
+  ansible.builtin.get_url:
+    url: https://pkgs.k8s.io/core:/stable:/v1.31/deb/Release.key
+    dest: /etc/apt/keyrings/kubernetes-apt-keyring-ascii.gpg
+    mode: '0644'
+
+- name: "install :: Convert Kubernetes apt key to binary format"
+  become: true
+  ansible.builtin.command:
+    cmd: "gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg /etc/apt/keyrings/kubernetes-apt-keyring-ascii.gpg"
+    removes: /etc/apt/keyrings/kubernetes-apt-keyring-ascii.gpg
+
+- name: "install :: Add Kubernetes apt repository"
+  become: true
+  ansible.builtin.apt_repository:
+    repo: "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.31/deb/ /"
+    state: present
+    filename: kubernetes
+
+- name: "install :: Update apt cache"
+  become: true
+  ansible.builtin.apt:
+    update_cache: yes
+
+- name: "install :: Install Kubernetes components"
+  become: true
+  ansible.builtin.apt:
+    pkg:
+      - kubelet
+      - kubeadm
+      - kubectl
+    state: present
+ 
+- name: "install :: Hold Kubernetes packages at current version"
+  become: true
+  ansible.builtin.dpkg_selections:
+    name: "{{ item }}"
+    selection: hold
+  loop:
+    - kubelet
+    - kubeadm
+    - kubectl
+

@@ -8,7 +8,7 @@
   become: true
   ansible.builtin.apt:
     pkg:
-      - kubectl=1.28.*
+      - kubectl=1.31.*
     force_apt_get: true
 
 - name: "config :: Hold kubeadm package at current version"
